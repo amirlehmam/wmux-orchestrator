@@ -27,3 +27,8 @@ Store the detection result so other skills can check it without re-running:
 ```bash
 export WMUX_AVAILABLE=$( bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-wmux.sh" 2>/dev/null && echo "true" || echo "false" )
 ```
+
+**ENFORCEMENT:**
+- When `WMUX_AVAILABLE=true`: ALL agents MUST be spawned via `wmux agent spawn`. Do NOT use Claude Code's `Agent` tool. The Agent tool creates invisible subagents — the user chose wmux specifically to SEE agents in panes.
+- When `WMUX_AVAILABLE=false`: Use Claude Code's `Agent` tool with `subagent_type: "wmux-orchestrator:wmux-worker"`.
+- Never mix modes within an orchestration.

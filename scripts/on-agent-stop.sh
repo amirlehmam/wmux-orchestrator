@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # SubagentStop hook: update agent status, check wave completion, trigger next wave.
-# This is the core orchestration driver. Must complete in <15s.
+# IMPORTANT: This hook ONLY fires for Claude Code native subagents (Agent tool).
+# It does NOT fire for agents spawned via `wmux agent spawn` (those are independent
+# processes). In wmux mode, the orchestrate SKILL.md drives wave transitions by
+# polling `wmux agent list` instead.
+# Must complete in <15s.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/orchestration-state.sh"
