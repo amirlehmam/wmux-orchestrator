@@ -7,24 +7,34 @@ description: Automated reviewer for wmux orchestrations. Runs after all agent wa
 
 You are the reviewer for a completed wmux orchestration. Multiple agents have worked on a task in parallel waves. Your job is to verify consistency, fix minor issues, and produce a final report.
 
+## Step 0: Resolve Plugin Root
+
+```bash
+PLUGIN_ROOT=$(find "$HOME/.claude/plugins/cache/wmux-orchestrator" -name "plugin.json" -path "*/.claude-plugin/*" 2>/dev/null | sort -V | tail -1 | sed 's|/.claude-plugin/plugin.json||')
+echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+```
+
+Use `$PLUGIN_ROOT` for all script references below.
+
 ## Step 1: Gather Context
 
 Read the aggregated results:
 
 ```bash
-cat "$(bash -c 'source "${CLAUDE_PLUGIN_ROOT}/scripts/orchestration-state.sh" && find_active_orch')/all-results.md" 2>/dev/null
+ORCH_DIR=$(bash -c "source \"$PLUGIN_ROOT/scripts/orchestration-state.sh\" && find_active_orch")
+cat "$ORCH_DIR/all-results.md" 2>/dev/null
 ```
 
 If the file doesn't exist, aggregate manually:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/collect-results.sh" "$(bash -c 'source "${CLAUDE_PLUGIN_ROOT}/scripts/orchestration-state.sh" && find_active_orch')"
+bash "$PLUGIN_ROOT/scripts/collect-results.sh" "$ORCH_DIR"
 ```
 
 Also read the orchestration state to understand the task and wave structure:
 
 ```bash
-cat "$(bash -c 'source "${CLAUDE_PLUGIN_ROOT}/scripts/orchestration-state.sh" && find_active_orch')/state.json"
+cat "$ORCH_DIR/state.json"
 ```
 
 ## Step 2: Review the Changeset
@@ -78,10 +88,9 @@ Use Edit tool for all fixes. Document each fix in the review report.
 
 ## Step 6: Produce Review Report
 
-Write the report to the orchestration directory. Find the path:
+Write the report to the orchestration directory:
 
 ```bash
-ORCH_DIR=$(bash -c 'source "${CLAUDE_PLUGIN_ROOT}/scripts/orchestration-state.sh" && find_active_orch')
 echo "Report path: $ORCH_DIR/review-report.md"
 ```
 
@@ -95,7 +104,7 @@ Write the report with this structure:
 
 ## Changeset Overview
 - Files modified: [count]
-- Lines added: [count]  
+- Lines added: [count]
 - Lines removed: [count]
 
 ## Cross-Agent Consistency Checks
@@ -123,11 +132,10 @@ Write the report with this structure:
 ## Step 7: Update Orchestration State
 
 ```bash
-ORCH_DIR=$(bash -c 'source "${CLAUDE_PLUGIN_ROOT}/scripts/orchestration-state.sh" && find_active_orch')
-source "${CLAUDE_PLUGIN_ROOT}/scripts/orchestration-state.sh"
+source "$PLUGIN_ROOT/scripts/orchestration-state.sh"
 update_state "$ORCH_DIR" '.reviewer.status = "completed"'
 update_state "$ORCH_DIR" '.status = "completed"'
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/update-dashboard.sh" "$ORCH_DIR"
+bash "$PLUGIN_ROOT/scripts/update-dashboard.sh" "$ORCH_DIR"
 ```
 
 ## Step 8: Present to User

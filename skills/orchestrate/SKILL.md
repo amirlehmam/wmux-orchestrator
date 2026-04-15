@@ -7,12 +7,29 @@ description: Core orchestration skill. Analyzes codebase, decomposes tasks into 
 
 You are the orchestrator. Your job is to decompose the user's task into parallel subtasks, create a wave-based execution plan, and launch Claude Code agents to execute it.
 
+## Phase 0: Resolve Plugin Root
+
+`CLAUDE_PLUGIN_ROOT` is set by Claude Code only inside hook execution, NOT in the main session's shell environment. You MUST resolve the plugin root path before running any scripts.
+
+Run this to find and export the plugin root:
+
+```bash
+PLUGIN_ROOT=$(find "$HOME/.claude/plugins/cache/wmux-orchestrator" -name "plugin.json" -path "*/.claude-plugin/*" 2>/dev/null | sort -V | tail -1 | sed 's|/.claude-plugin/plugin.json||')
+echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+ls "$PLUGIN_ROOT/scripts/" | head -5
+```
+
+If the `find` returns empty, the plugin is not installed. Tell the user:
+> "wmux-orchestrator plugin not found. Install it with: `claude plugins install wmux-orchestrator@wmux-orchestrator`"
+
+**Store `PLUGIN_ROOT` and use it for ALL subsequent `bash` commands in this orchestration.** Every script reference below uses `$PLUGIN_ROOT` — you must prefix every bash command that references plugin scripts with the same export or pass the resolved path directly.
+
 ## Phase 1: Detect wmux
 
 Run the detection script:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-wmux.sh"
+bash "$PLUGIN_ROOT/scripts/detect-wmux.sh"
 ```
 
 Store the result as `WMUX_MODE`:
@@ -55,7 +72,7 @@ Based on your analysis, break the task into subtasks. Each subtask must have:
 
 Reference the decomposition guide for patterns:
 ```bash
-cat "${CLAUDE_PLUGIN_ROOT}/skills/orchestrate/references/decomposition-guide.md"
+cat "$PLUGIN_ROOT/skills/orchestrate/references/decomposition-guide.md"
 ```
 
 ## Phase 4: Build the Wave Plan
@@ -328,7 +345,7 @@ The spawn script (`spawn-agents.sh`) automatically creates panes via `wmux split
 
 Spawn agents using the spawn script:
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/spawn-agents.sh" "[orch-dir]" 0
+bash "$PLUGIN_ROOT/scripts/spawn-agents.sh" "[orch-dir]" 0
 ```
 
 This script:
@@ -365,7 +382,7 @@ Before entering the loop, note how the user sees progress:
 
 - **In degraded mode (no wmux)**: you must print the text dashboard into Claude Code's conversation at each wave transition so the user can see progress. Run:
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/scripts/dashboard-text.js" "[orch-dir]"
+  node "$PLUGIN_ROOT/scripts/dashboard-text.js" "[orch-dir]"
   ```
   Call it ONCE after spawning each wave, and ONCE after each wave completes. Do not call it inside the monitoring loop (that would spam the session). If the user asks "how's it going", you can also call it then.
 
@@ -394,7 +411,7 @@ For each agent, check the `"status"` field:
 2. Report results to the user: which agents succeeded, which failed, what they produced
 3. If there are more waves:
    a. Generate prompt files for Wave N+1 (inject previous wave results into the "Previous Wave Results" section)
-   b. Spawn Wave N+1 agents: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/spawn-agents.sh" "[orch-dir]" [N+1]`
+   b. Spawn Wave N+1 agents: `bash "$PLUGIN_ROOT/scripts/spawn-agents.sh" "[orch-dir]" [N+1]`
    c. Verify agents spawned with `wmux agent list`
    d. Continue monitoring loop
 4. If all waves are done, proceed to Phase 8
@@ -412,7 +429,7 @@ When all waves are complete:
 
 1. Aggregate results:
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/collect-results.sh" "[orch-dir]"
+bash "$PLUGIN_ROOT/scripts/collect-results.sh" "[orch-dir]"
 ```
 
 2. Invoke the reviewer skill to analyze all changes and produce a final report.

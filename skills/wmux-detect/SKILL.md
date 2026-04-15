@@ -5,10 +5,16 @@ description: Detect if wmux terminal multiplexer is running. Used internally by 
 
 # wmux Detection
 
+First, resolve the plugin root (not available as env var in main session):
+
+```bash
+PLUGIN_ROOT=$(find "$HOME/.claude/plugins/cache/wmux-orchestrator" -name "plugin.json" -path "*/.claude-plugin/*" 2>/dev/null | sort -V | tail -1 | sed 's|/.claude-plugin/plugin.json||')
+```
+
 Run the detection script to check if wmux is available:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-wmux.sh"
+bash "$PLUGIN_ROOT/scripts/detect-wmux.sh"
 ```
 
 **If output is "available":**
@@ -25,7 +31,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-wmux.sh"
 Store the detection result so other skills can check it without re-running:
 
 ```bash
-export WMUX_AVAILABLE=$( bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-wmux.sh" 2>/dev/null && echo "true" || echo "false" )
+export WMUX_AVAILABLE=$( bash "$PLUGIN_ROOT/scripts/detect-wmux.sh" 2>/dev/null && echo "true" || echo "false" )
 ```
 
 **ENFORCEMENT:**
