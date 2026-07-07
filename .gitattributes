@@ -1,0 +1,3 @@
+# Keep shell scripts LF so their shebangs run under bash even on Windows with
+# core.autocrlf=true (a CRLF shebang breaks `#!/usr/bin/env bash`).
+*.sh text eol=lf

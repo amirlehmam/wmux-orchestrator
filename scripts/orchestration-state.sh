@@ -9,6 +9,9 @@ ORCH_BASE="${TMPDIR:-/tmp}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JSON_TOOL="$SCRIPT_DIR/json-tool.js"
 
+# Make bare `wmux` resolvable when it isn't on PATH (falls back to $WMUX_CLI).
+source "$SCRIPT_DIR/wmux-resolve.sh"
+
 # Find the active orchestration directory (most recent state.json with status "running")
 find_active_orch() {
   local latest=""
