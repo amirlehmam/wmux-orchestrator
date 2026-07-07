@@ -22,6 +22,10 @@ bash "$PLUGIN_ROOT/scripts/detect-wmux.sh"
 - The orchestrator can use `wmux split`, `wmux agent spawn`, `wmux markdown set` etc.
 - Full multi-pane visual experience is available
 
+Detection works even when `wmux` isn't on PATH: shells spawned by wmux always carry `$WMUX_CLI`
+(the path to the CLI script), and the detection script falls back to running it via `node` when the
+bare command isn't found. The same fallback applies to every plugin script that calls `wmux`.
+
 **If output is "unavailable":**
 - wmux is not running or not installed
 - Fall back to Claude Code's native `Agent` tool for parallel workers
