@@ -3,6 +3,10 @@
 # Exit 0 + print "available" if wmux responds to ping.
 # Exit 1 + print "unavailable" if not.
 
+# Make bare `wmux` resolvable when it isn't on PATH (falls back to $WMUX_CLI),
+# so detection succeeds via the injected CLI even on an un-patched wmux.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wmux-resolve.sh"
+
 if command -v wmux &>/dev/null; then
   result=$(wmux ping 2>/dev/null)
   if [ "$result" = "pong" ]; then
