@@ -286,6 +286,14 @@ Write `state.json` using the Write tool. Schema:
 
 Use short agent IDs like "agent-a", "agent-b", etc. Set the first wave's status to "running", all others to "pending".
 
+**Resolve the target workspace NOW and record it in `workspaceId`.** Do not leave it `null` in wmux mode: the coordinator's `WMUX_SURFACE_ID` env var can be stale (background or resumed sessions point at a dead surface), so nothing downstream can safely infer the workspace implicitly. Run:
+
+```bash
+wmux list-workspaces
+```
+
+Each entry has `{ id, title, isActive, cwd }`. Pick the workspace whose `cwd` matches the project — but note multiple workspaces can share the same `cwd`; when ambiguous, resolve by `title` or ask the user. Record the **id** (not the title) in `state.json`'s `workspaceId`. Later phases use it to pin the layout, scope pane/agent listings, and keep the orchestration out of whatever workspace the user happens to be looking at.
+
 ### 6c. Generate agent prompt files
 
 For EACH agent, create a prompt file at `{orch-dir}/agent-{id}-prompt.md` with:
@@ -333,9 +341,22 @@ Use this format:
 
 ### 6d. Create wmux layout (if available)
 
-**IMPORTANT: Work in the CURRENT workspace. Do NOT create or close workspaces — that hides agent panes from the user.**
+**IMPORTANT: Do NOT create or close workspaces — that hides agent panes from the user.**
 
-The spawn script (`spawn-agents.sh`) automatically creates panes via `wmux split`.
+The spawn script (`spawn-agents.sh`) automatically creates panes via `wmux layout grid`, anchored to the caller's `$WMUX_SURFACE_ID`.
+
+**Pin the workspace BEFORE spawning.** `wmux layout grid` anchors to the caller's `WMUX_SURFACE_ID`; in background or resumed sessions that env var is often stale, and the app then falls back to whatever workspace the user currently has active. The spawn script passes no `--workspace` either — so without pinning, the entire grid plus agents can land in an unrelated workspace the user is working in (their `--cwd` still governs where they work, but it hijacks the user's screen and breaks pane counting). Two ways to pin, using the `workspaceId` recorded in Phase 6b:
+
+- **Primary (works with the spawn script as-is):** select the target workspace immediately before spawning:
+  ```bash
+  wmux select-workspace <workspaceId>
+  bash "$PLUGIN_ROOT/scripts/spawn-agents.sh" "[orch-dir]" 0
+  ```
+  Side effect: this flips the user's visible workspace — usually desirable, since the grid is about to appear there.
+
+- **Alternative (focus-preserving):** skip the script's gridding and target the workspace explicitly — create the grid with `wmux layout grid --workspace <workspaceId> --count <N> --type terminal`, then spawn each agent into a returned pane with `wmux agent spawn --pane <paneId> --cwd <dir> --label <label> --cmd <cmd>`. The user's active workspace is never disturbed.
+
+Pane-hygiene checks in this phase (and later) must count panes in the TARGET workspace, not the active one: `wmux list-panes --workspace <workspaceId>`.
 
 ### 6e. Spawn Wave 1 agents
 
@@ -349,7 +370,7 @@ bash "$PLUGIN_ROOT/scripts/spawn-agents.sh" "[orch-dir]" 0
 ```
 
 This script:
-1. Creates a pane per agent via `wmux split`
+1. Creates a pane per agent via `wmux layout grid`
 2. Runs `node launch-agent.js <prompt-file>` in each pane
 3. `launch-agent.js` uses `execFileSync` with `'--'` separator to pass the full prompt as a positional argument — this bypasses all shell quoting issues
 4. Claude starts in **interactive mode with full TUI** — the prompt auto-submits and Claude begins working immediately
@@ -391,8 +412,10 @@ Before entering the loop, note how the user sees progress:
 After spawning Wave N agents, enter a monitoring loop. Poll every 15-20 seconds:
 
 ```bash
-wmux agent list
+wmux agent list --workspace <workspaceId>
 ```
+
+Without `--workspace`, `agent list` returns agents from ALL workspaces — including ones the user spawned themselves in other sessions. Only ever act on (nudge, kill) agents whose ids appear in this orchestration's `state.json`; **never kill an agent this orchestration didn't spawn.**
 
 For each agent, check the `"status"` field:
 - `"running"` → agent is still working
@@ -410,10 +433,11 @@ For each agent, check the `"status"` field:
    ```
 2. Report results to the user: which agents succeeded, which failed, what they produced
 3. If there are more waves:
-   a. Generate prompt files for Wave N+1 (inject previous wave results into the "Previous Wave Results" section)
-   b. Spawn Wave N+1 agents: `bash "$PLUGIN_ROOT/scripts/spawn-agents.sh" "[orch-dir]" [N+1]`
-   c. Verify agents spawned with `wmux agent list`
-   d. Continue monitoring loop
+   a. If you close finished agents' panes to make room, reap in this order: `wmux agent kill <agentId>` FIRST, `wmux close-pane <paneId>` second (see Phase 9 for why the order matters)
+   b. Generate prompt files for Wave N+1 (inject previous wave results into the "Previous Wave Results" section)
+   c. Spawn Wave N+1 agents: `bash "$PLUGIN_ROOT/scripts/spawn-agents.sh" "[orch-dir]" [N+1]`
+   d. Verify agents spawned with `wmux agent list --workspace <workspaceId>`
+   e. Continue monitoring loop
 4. If all waves are done, proceed to Phase 8
 
 ### Without wmux (degraded mode — Agent tool returns):
@@ -435,6 +459,8 @@ bash "$PLUGIN_ROOT/scripts/collect-results.sh" "[orch-dir]"
 2. Invoke the reviewer skill to analyze all changes and produce a final report.
 
 ## Phase 9: Finalize
+
+**Teardown order matters: `wmux agent kill <agentId>` BEFORE `wmux close-pane <paneId>` — for every agent, every time.** Closing an agent's pane first leaves the agent registry stale: `wmux agent list` keeps reporting the agent as `running`, but `wmux agent kill <id>` then fails with "Agent not found" — and the agent's launcher process tree (shell → node → claude) SURVIVES the pane close, invisibly burning CPU and tokens. If that happens, recover by taking the `pid` from `wmux agent list` and killing the process TREE (Windows: `taskkill /F /T /PID <pid>`); judge liveness by the process, not the registry status. And per Phase 7: only kill agents this orchestration spawned.
 
 After the reviewer completes, present a summary:
 - Total time elapsed
