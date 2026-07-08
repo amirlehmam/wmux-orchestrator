@@ -433,10 +433,11 @@ For each agent, check the `"status"` field:
    ```
 2. Report results to the user: which agents succeeded, which failed, what they produced
 3. If there are more waves:
-   a. Generate prompt files for Wave N+1 (inject previous wave results into the "Previous Wave Results" section)
-   b. Spawn Wave N+1 agents: `bash "$PLUGIN_ROOT/scripts/spawn-agents.sh" "[orch-dir]" [N+1]`
-   c. Verify agents spawned with `wmux agent list --workspace <workspaceId>`
-   d. Continue monitoring loop
+   a. If you close finished agents' panes to make room, reap in this order: `wmux agent kill <agentId>` FIRST, `wmux close-pane <paneId>` second (see Phase 9 for why the order matters)
+   b. Generate prompt files for Wave N+1 (inject previous wave results into the "Previous Wave Results" section)
+   c. Spawn Wave N+1 agents: `bash "$PLUGIN_ROOT/scripts/spawn-agents.sh" "[orch-dir]" [N+1]`
+   d. Verify agents spawned with `wmux agent list --workspace <workspaceId>`
+   e. Continue monitoring loop
 4. If all waves are done, proceed to Phase 8
 
 ### Without wmux (degraded mode — Agent tool returns):
@@ -458,6 +459,8 @@ bash "$PLUGIN_ROOT/scripts/collect-results.sh" "[orch-dir]"
 2. Invoke the reviewer skill to analyze all changes and produce a final report.
 
 ## Phase 9: Finalize
+
+**Teardown order matters: `wmux agent kill <agentId>` BEFORE `wmux close-pane <paneId>` — for every agent, every time.** Closing an agent's pane first leaves the agent registry stale: `wmux agent list` keeps reporting the agent as `running`, but `wmux agent kill <id>` then fails with "Agent not found" — and the agent's launcher process tree (shell → node → claude) SURVIVES the pane close, invisibly burning CPU and tokens. If that happens, recover by taking the `pid` from `wmux agent list` and killing the process TREE (Windows: `taskkill /F /T /PID <pid>`); judge liveness by the process, not the registry status. And per Phase 7: only kill agents this orchestration spawned.
 
 After the reviewer completes, present a summary:
 - Total time elapsed
