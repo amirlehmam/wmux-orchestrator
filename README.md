@@ -7,8 +7,18 @@ Claude Code plugin that decomposes complex dev tasks into parallel agents coordi
 
 ## Install
 
+Add the marketplace, then install the plugin from it:
+
 ```bash
-claude plugin add amirlehmam/wmux-orchestrator
+claude plugin marketplace add amirlehmam/wmux-orchestrator
+claude plugin install wmux-orchestrator@wmux-orchestrator
+```
+
+Verify it's enabled with `claude plugin list`. To update later:
+
+```bash
+claude plugin marketplace update wmux-orchestrator
+claude plugin update wmux-orchestrator@wmux-orchestrator
 ```
 
 ## Usage
